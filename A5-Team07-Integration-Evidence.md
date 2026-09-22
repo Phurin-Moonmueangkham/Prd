@@ -64,23 +64,7 @@ The Postman response confirms the provider chain by returning `provider: "UniEnr
 
 ![Provider response confirming UniEnroll Team 03 data](pic/Screenshot%202026-09-22%20220306.png)
 
-The partner contract requires these headers. The actual key is stored as a Cloudflare secret and is not included in this document.
-
-![Required partner headers](pic/819404080_28862235420080057_3062311197176009608_n.png)
-
-## Partner API contract evidence
-
-The partner documents these supported query parameters:
-
-- `course_code`, for example `CS101`
-- `section_number`, for example `SEC01`
-- `student_code`, an 8-digit student code such as `65010042`
-
-![Supported query parameters](pic/814660187_847717285028598_4954012725532327745_n.png)
-
-The partner's test fixtures include student `65010042` enrolled in `CS101 / SEC01`.
-
-![Partner test student and enrollment fixtures](pic/817624450_3576165572531768_6631143114170252693_n.png)
+The partner key is stored as a Cloudflare secret and is intentionally not included in this document.
 
 ## 3. Webhook Receiver: NOT APPLICABLE
 
