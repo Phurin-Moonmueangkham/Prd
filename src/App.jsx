@@ -1,4 +1,4 @@
-import { useState } from 'react'
+import { useEffect, useState } from 'react'
 import {
   ArrowUpRight,
   BarChart3,
@@ -19,8 +19,8 @@ import {
   X,
 } from 'lucide-react'
 
-import { isFirebaseConfigured } from './lib/firebase'
-import { sendAttendanceWebhook } from './lib/attendanceApi'
+import { auth, isFirebaseConfigured } from './lib/firebase'
+import { sendAttendanceWebhook, signIn } from './lib/attendanceApi'
 
 const initialSessions = [
   { id: 1, code: 'CS204', name: 'Human Computer Interaction', room: 'Studio 3B', time: '09:00 - 10:30', date: 'Today', state: 'active', present: 38, total: 42, accent: 'coral' },
@@ -37,6 +37,12 @@ const initialStudents = [
 ]
 
 function App() {
+  const [user, setUser] = useState(null)
+  const [authLoading, setAuthLoading] = useState(isFirebaseConfigured)
+  const [email, setEmail] = useState('')
+  const [password, setPassword] = useState('')
+  const [authError, setAuthError] = useState('')
+  const [demoMode, setDemoMode] = useState(false)
   const [view, setView] = useState('overview')
   const [sessions, setSessions] = useState(initialSessions)
   const [students, setStudents] = useState(initialStudents)
@@ -47,6 +53,26 @@ function App() {
   const presentCount = students.filter((student) => student.status === 'present').length
   const lateCount = students.filter((student) => student.status === 'late').length
   const absentCount = students.filter((student) => student.status === 'absent').length
+
+  useEffect(() => {
+    if (!auth) return undefined
+    return auth.onAuthStateChanged((nextUser) => {
+      setUser(nextUser)
+      setAuthLoading(false)
+    })
+  }, [])
+
+  async function handleLogin(event) {
+    event.preventDefault()
+    setAuthError('')
+    try {
+      await signIn(email, password)
+    } catch (error) {
+      setAuthError(error.code === 'auth/invalid-credential'
+        ? 'Email or password is incorrect.'
+        : 'Unable to sign in. Check your Firebase Auth setup.')
+    }
+  }
 
   async function markAttendance() {
     setStudents((current) => current.map((student) => student.name === 'You' ? { ...student, status: 'present', time: 'Now' } : student))
@@ -86,6 +112,9 @@ function App() {
     setTimeout(() => setNotice(''), 3500)
   }
 
+  if (authLoading) return <div className="auth-loading">Loading AttendanceFlow...</div>
+  if (!user && !demoMode) return <LoginPage email={email} password={password} setEmail={setEmail} setPassword={setPassword} authError={authError} onSubmit={handleLogin} onDemo={() => setDemoMode(true)} firebaseConfigured={isFirebaseConfigured} />
+
   return (
     <div className="app-shell">
       <aside className={`sidebar ${mobileNav ? 'is-open' : ''}`}>
@@ -120,6 +149,13 @@ function App() {
       </main>
     </div>
   )
+}
+
+function LoginPage({ email, password, setEmail, setPassword, authError, onSubmit, onDemo, firebaseConfigured }) {
+  return <main className="login-page">
+    <section className="login-art"><div className="login-art-copy"><span className="brand-mark"><Check size={17} strokeWidth={3} /></span><p className="eyebrow">AttendanceFlow</p><h1>Make every class count.</h1><p>One clear place to check in, stay on track, and keep your academic rhythm visible.</p></div><div className="login-orbit orbit-one" /><div className="login-orbit orbit-two" /></section>
+    <section className="login-panel"><div className="login-form-wrap"><div className="mobile-brand"><span className="brand-mark"><Check size={17} strokeWidth={3} /></span><strong>Attendance<span>Flow</span></strong></div><p className="eyebrow">Welcome back</p><h2>Sign in to your workspace</h2><p className="login-muted">Use your university email to continue.</p><form onSubmit={onSubmit}><label>Email address<input type="email" value={email} onChange={(event) => setEmail(event.target.value)} placeholder="you@university.ac.th" required autoComplete="email" /></label><label>Password<input type="password" value={password} onChange={(event) => setPassword(event.target.value)} placeholder="Enter your password" required autoComplete="current-password" /></label>{authError && <p className="auth-error">{authError}</p>}<button className="primary-button login-button" type="submit">Sign in <ArrowUpRight size={16} /></button></form>{!firebaseConfigured && <button className="demo-button" onClick={onDemo}>Continue in demo mode</button>}<p className="login-footnote">Protected by Firebase Authentication</p></div></section>
+  </main>
 }
 
 function StatCard({ label, value, detail, icon, tone }) { return <div className={`stat-card ${tone}`}><div className="stat-icon">{icon}</div><p>{label}</p><strong>{value}</strong><small>{detail}</small></div> }
