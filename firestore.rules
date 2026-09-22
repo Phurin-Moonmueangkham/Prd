@@ -1,0 +1,68 @@
+rules_version = '2';
+
+service cloud.firestore {
+  match /databases/{database}/documents {
+    function signedIn() {
+      return request.auth != null;
+    }
+
+    function userRole() {
+      return get(/databases/$(database)/documents/users/$(request.auth.uid)).data.role;
+    }
+
+    function isAdmin() {
+      return signedIn() && userRole() == 'admin';
+    }
+
+    function isInstructor() {
+      return signedIn() && userRole() == 'instructor';
+    }
+
+    match /users/{userId} {
+      allow read: if signedIn() && (request.auth.uid == userId || isAdmin());
+      allow create: if signedIn() && request.auth.uid == userId;
+      allow update: if signedIn() && (request.auth.uid == userId || isAdmin());
+      allow delete: if isAdmin();
+    }
+
+    match /courses/{courseId} {
+      allow read: if signedIn();
+      allow create: if isInstructor() || isAdmin();
+      allow update, delete: if isAdmin()
+        || (isInstructor() && resource.data.instructorId == request.auth.uid);
+
+      match /sessions/{sessionId} {
+        allow read: if signedIn();
+        allow create: if isInstructor() || isAdmin();
+        allow update, delete: if isAdmin() || isInstructor();
+      }
+
+      match /enrollments/{userId} {
+        allow read: if signedIn()
+          && (request.auth.uid == userId || isInstructor() || isAdmin());
+        allow write: if isInstructor() || isAdmin();
+      }
+    }
+
+    match /attendance/{attendanceId} {
+      allow read: if signedIn()
+        && (resource.data.studentId == request.auth.uid || isInstructor() || isAdmin());
+      allow create: if signedIn()
+        && request.resource.data.studentId == request.auth.uid
+        && request.resource.data.status == 'present'
+        && !exists(/databases/$(database)/documents/attendance/$(attendanceId));
+      allow update: if isInstructor() || isAdmin();
+      allow delete: if isAdmin();
+    }
+
+    match /webhookEvents/{eventId} {
+      allow read: if isAdmin();
+      allow write: if false;
+    }
+
+    match /auditLogs/{auditId} {
+      allow read: if isAdmin();
+      allow write: if false;
+    }
+  }
+}
