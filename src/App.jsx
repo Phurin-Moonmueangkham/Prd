@@ -13,6 +13,7 @@ import {
   Menu,
   Plus,
   QrCode,
+  RefreshCw,
   Settings,
   ShieldCheck,
   Users,
@@ -20,7 +21,7 @@ import {
 } from 'lucide-react'
 
 import { auth, isFirebaseConfigured } from './lib/firebase'
-import { sendAttendanceWebhook, signIn } from './lib/attendanceApi'
+import { listPartnerEnrollments, sendAttendanceWebhook, signIn } from './lib/attendanceApi'
 
 const initialSessions = [
   { id: 1, code: 'CS204', name: 'Human Computer Interaction', room: 'Studio 3B', time: '09:00 - 10:30', date: 'Today', state: 'active', present: 38, total: 42, accent: 'coral' },
@@ -48,6 +49,10 @@ function App() {
   const [students, setStudents] = useState(initialStudents)
   const [notice, setNotice] = useState('')
   const [mobileNav, setMobileNav] = useState(false)
+  const [enrollments, setEnrollments] = useState([])
+  const [enrollmentLoading, setEnrollmentLoading] = useState(false)
+  const [enrollmentError, setEnrollmentError] = useState('')
+  const [enrollmentQuery, setEnrollmentQuery] = useState({ courseCode: 'CS101', sectionNumber: 'SEC01' })
 
   const activeSession = sessions.find((session) => session.state === 'active')
   const presentCount = students.filter((student) => student.status === 'present').length
@@ -61,6 +66,25 @@ function App() {
       setAuthLoading(false)
     })
   }, [])
+
+  useEffect(() => {
+    if (view === 'enrollments') loadEnrollments()
+  }, [view])
+
+  async function loadEnrollments(event) {
+    event?.preventDefault()
+    setEnrollmentLoading(true)
+    setEnrollmentError('')
+    try {
+      const result = await listPartnerEnrollments(enrollmentQuery)
+      setEnrollments(result.data || [])
+    } catch (error) {
+      setEnrollmentError(error.message || 'Unable to load enrollment roster.')
+      setEnrollments([])
+    } finally {
+      setEnrollmentLoading(false)
+    }
+  }
 
   async function handleLogin(event) {
     event.preventDefault()
@@ -124,15 +148,16 @@ function App() {
           <button className={view === 'overview' ? 'nav-item active' : 'nav-item'} onClick={() => { setView('overview'); setMobileNav(false) }}><LayoutDashboard size={18} />Overview</button>
           <button className={view === 'sessions' ? 'nav-item active' : 'nav-item'} onClick={() => { setView('sessions'); setMobileNav(false) }}><CalendarDays size={18} />My sessions</button>
           <button className={view === 'reports' ? 'nav-item active' : 'nav-item'} onClick={() => { setView('reports'); setMobileNav(false) }}><BarChart3 size={18} />Reports</button>
+          <button className={view === 'enrollments' ? 'nav-item active' : 'nav-item'} onClick={() => { setView('enrollments'); setMobileNav(false) }}><Users size={18} />Enrollment roster</button>
         </nav>
         <div className="sidebar-bottom"><button className="nav-item"><Settings size={18} />Settings</button><button className="nav-item"><CircleHelp size={18} />Help center</button><div className="semester"><small>Current semester</small><strong>2026 / Semester 1</strong><span>● Connected</span></div></div>
       </aside>
 
       <main className="main-content">
-        <header className="topbar"><button className="menu-button" onClick={() => setMobileNav(!mobileNav)}><Menu size={21} /></button><div className="breadcrumb"><span>Workspace</span><ChevronRight size={14} /><strong>{view === 'overview' ? 'Overview' : view === 'sessions' ? 'My sessions' : 'Reports'}</strong></div><div className="top-actions"><button className="icon-button" aria-label="Notifications"><Bell size={19} /><i /></button><div className="top-avatar">AM</div></div></header>
+        <header className="topbar"><button className="menu-button" onClick={() => setMobileNav(!mobileNav)}><Menu size={21} /></button><div className="breadcrumb"><span>Workspace</span><ChevronRight size={14} /><strong>{view === 'overview' ? 'Overview' : view === 'sessions' ? 'My sessions' : view === 'reports' ? 'Reports' : 'Enrollment roster'}</strong></div><div className="top-actions"><button className="icon-button" aria-label="Notifications"><Bell size={19} /><i /></button><div className="top-avatar">AM</div></div></header>
 
         <div className="page-wrap">
-          <section className="welcome-row"><div><p className="eyebrow">Tuesday, September 22, 2026</p><h1>{view === 'overview' ? 'Good morning, Araya' : view === 'sessions' ? 'Your sessions' : 'Attendance reports'}</h1><p className="muted">{view === 'overview' ? 'Here is your attendance pulse for today.' : 'Keep your classes and attendance records in one place.'}</p></div><button className="outline-button"><QrCode size={17} /> Scan session code</button></section>
+          <section className="welcome-row"><div><p className="eyebrow">Tuesday, September 22, 2026</p><h1>{view === 'overview' ? 'Good morning, Araya' : view === 'sessions' ? 'Your sessions' : view === 'reports' ? 'Attendance reports' : 'Enrollment roster'}</h1><p className="muted">{view === 'overview' ? 'Here is your attendance pulse for today.' : view === 'enrollments' ? 'Live student enrollment from UniEnroll Team 03.' : 'Keep your classes and attendance records in one place.'}</p></div><button className="outline-button"><QrCode size={17} /> Scan session code</button></section>
 
           {notice && <div className="toast"><Check size={17} />{notice}<button onClick={() => setNotice('')}><X size={15} /></button></div>}
 
@@ -145,6 +170,7 @@ function App() {
           {view === 'sessions' && <section className="sessions-view"><div className="panel session-manager"><div className="panel-heading"><div><p className="eyebrow">Your timetable</p><h2>All sessions</h2></div><button className="primary-button" onClick={() => document.getElementById('create-session').showModal()}><Plus size={17} /> New session</button></div><div className="session-list">{sessions.map((session) => <SessionRow key={session.id} session={session} detailed />)}</div></div><dialog id="create-session"><form onSubmit={createSession}><button type="button" className="dialog-close" onClick={() => document.getElementById('create-session').close()}><X size={18} /></button><p className="eyebrow">Instructor tool</p><h2>Create a session</h2><label>Course code<input name="code" required placeholder="e.g. CS204" /></label><label>Course name<input name="name" required placeholder="e.g. Human Computer Interaction" /></label><label>Room<input name="room" required placeholder="e.g. Studio 3B" /></label><div className="time-inputs"><label>Starts<input type="time" name="start" required defaultValue="09:00" /></label><label>Ends<input type="time" name="end" required defaultValue="10:30" /></label></div><button className="primary-button" type="submit">Create session <ArrowUpRight size={16} /></button></form></dialog></section>}
 
           {view === 'reports' && <section className="reports-view"><div className="report-hero"><div><p className="eyebrow">Course overview</p><h2>Human Computer Interaction</h2><p>CS204 · 42 enrolled students · Fall 2026</p></div><span className="status-badge green"><ShieldCheck size={15} /> Healthy attendance</span></div><div className="report-cards"><StatCard label="Present today" value={presentCount} detail="57.1% of the class" icon={<Check size={19} />} tone="sage" /><StatCard label="Late today" value={lateCount} detail="Requires no action" icon={<Clock3 size={19} />} tone="amber" /><StatCard label="Absent today" value={absentCount} detail="Review before closing" icon={<Users size={19} />} tone="coral" /></div><div className="panel roster-panel"><div className="panel-heading"><div><p className="eyebrow">Live roster</p><h2>Today, 22 September</h2></div><span className="muted">Last updated just now</span></div><div className="roster-head"><span>Student</span><span>Status</span><span>Time</span></div>{students.map((student) => <div className="roster-row" key={student.id}><div className="student-cell"><div className="student-avatar">{student.name.split(' ').map((word) => word[0]).join('').slice(0, 2)}</div><div><strong>{student.name}</strong><small>{student.id}</small></div></div><Status status={student.status} /><span className="time-cell">{student.time}</span></div>)}</div></section>}
+          {view === 'enrollments' && <section className="enrollments-view"><div className="panel enrollment-panel"><div className="panel-heading"><div><p className="eyebrow">Partner integration</p><h2>Active student enrollment</h2><p className="panel-subtitle">UniEnroll Team 03 · {enrollments.length} students found</p></div><button className="outline-button refresh-button" onClick={() => loadEnrollments()} disabled={enrollmentLoading}><RefreshCw size={16} className={enrollmentLoading ? 'spin' : ''} /> Refresh</button></div><form className="enrollment-filters" onSubmit={loadEnrollments}><label>Course code<input value={enrollmentQuery.courseCode} onChange={(event) => setEnrollmentQuery((current) => ({ ...current, courseCode: event.target.value.toUpperCase() }))} placeholder="CS101" /></label><label>Section<input value={enrollmentQuery.sectionNumber} onChange={(event) => setEnrollmentQuery((current) => ({ ...current, sectionNumber: event.target.value.toUpperCase() }))} placeholder="SEC01" /></label><button className="primary-button" type="submit" disabled={enrollmentLoading}>Load roster <ArrowUpRight size={16} /></button></form>{enrollmentLoading && <div className="enrollment-state">Loading enrollment roster...</div>}{enrollmentError && <div className="enrollment-error">{enrollmentError}</div>}{!enrollmentLoading && !enrollmentError && enrollments.length === 0 && <div className="enrollment-state">No enrolled students found for this course and section.</div>}{!enrollmentLoading && !enrollmentError && enrollments.length > 0 && <div className="enrollment-table"><div className="enrollment-table-head"><span>Student</span><span>Course</span><span>Schedule</span><span>Status</span></div>{enrollments.map((student) => <div className="enrollment-row" key={student.enrollment_id}><div className="student-cell"><div className="student-avatar">{student.student_name.split(' ').map((word) => word[0]).join('').slice(0, 2)}</div><div><strong>{student.student_name}</strong><small>{student.student_code} · {student.major}</small></div></div><div><strong>{student.course_code}</strong><small>{student.course_title}</small></div><div><strong>{student.section_number}</strong><small>{student.schedule} · {student.room}</small></div><span className="status-badge present"><i />{student.status}</span></div>)}</div>}</div></section>}
         </div>
       </main>
     </div>

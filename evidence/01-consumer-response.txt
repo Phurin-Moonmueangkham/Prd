@@ -1,0 +1,27 @@
+A5 Consumer Proof
+Timestamp: 2026-09-22 14:44:14 UTC
+Request:
+GET https://attendanceflow-webhook.6731503026.workers.dev/api/enrollments?course_code=CS101&section_number=SEC01
+
+Result: HTTP/2 200
+
+Response:
+{
+  "success": true,
+  "provider": "UniEnroll Team 03",
+  "service": "Active Student Enrollment Roster",
+  "total_active_students": 1,
+  "data": [
+    {
+      "enrollment_id": 1,
+      "status": "ENROLLED",
+      "student_code": "65010042",
+      "student_name": "Somchai Prasert",
+      "course_code": "CS101",
+      "section_number": "SEC01",
+      "room": "CB2-301"
+    }
+  ]
+}
+
+The partner key was sent server-side by the Cloudflare Worker and is intentionally redacted from this evidence file.

@@ -35,6 +35,20 @@ export async function sendAttendanceWebhook(event) {
   return response.json()
 }
 
+export async function listPartnerEnrollments({ courseCode, sectionNumber, studentCode } = {}) {
+  const webhookUrl = import.meta.env.VITE_ATTENDANCE_WEBHOOK_URL
+  if (!webhookUrl) throw new Error('VITE_ATTENDANCE_WEBHOOK_URL is not configured.')
+
+  const url = new URL('/api/enrollments', webhookUrl)
+  if (courseCode) url.searchParams.set('course_code', courseCode)
+  if (sectionNumber) url.searchParams.set('section_number', sectionNumber)
+  if (studentCode) url.searchParams.set('student_code', studentCode)
+
+  const response = await fetch(url)
+  if (!response.ok) throw new Error('Enrollment API request failed')
+  return response.json()
+}
+
 export async function listCourseSessions(courseId) {
   requireFirebase()
   const sessionsQuery = query(collection(db, 'courses', courseId, 'sessions'), where('status', '!=', 'cancelled'))

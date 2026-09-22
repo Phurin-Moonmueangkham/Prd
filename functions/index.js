@@ -10,6 +10,11 @@
 const {setGlobalOptions} = require("firebase-functions");
 const {onRequest} = require("firebase-functions/https");
 const logger = require("firebase-functions/logger");
+const crypto = require("crypto");
+const admin = require("firebase-admin");
+
+admin.initializeApp();
+const db = admin.firestore();
 
 // For cost control, you can set the maximum number of containers that can be
 // running at the same time. This helps mitigate the impact of unexpected
@@ -29,16 +34,59 @@ exports.attendanceWebhook = onRequest((request, response) => {
     return;
   }
 
-  const {eventType, attendanceId, status} = request.body || {};
-  if (!eventType || !attendanceId || !status) {
+  const rawBody = request.rawBody?.toString("utf8") || JSON.stringify(request.body || {});
+  const payload = request.body || {};
+  const signature = request.get("x-attendance-signature");
+  const eventId = request.get("x-attendance-event-id") || payload.eventId;
+
+  if (!verifySignature(rawBody, signature)) {
+    response.status(401).json({success: false, error: "INVALID_SIGNATURE"});
+    return;
+  }
+
+  const {eventType, attendanceId, status} = payload;
+  if (!eventId || !eventType || !attendanceId || !status) {
     response.status(400).json({success: false, error: "INVALID_PAYLOAD"});
     return;
   }
 
-  logger.info("Attendance webhook received", {
-    eventType,
-    attendanceId,
-    status,
+  const eventRef = db.collection("integrationEvents").doc(eventId);
+  db.runTransaction(async (transaction) => {
+    const existing = await transaction.get(eventRef);
+    if (existing.exists) return false;
+    transaction.create(eventRef, {
+      eventId,
+      eventType,
+      attendanceId,
+      status,
+      receivedAt: admin.firestore.FieldValue.serverTimestamp(),
+      rawPayload: payload,
+    });
+    return true;
+  }).then((created) => {
+    logger.info("Attendance webhook received", {
+      eventId,
+      eventType,
+      attendanceId,
+      status,
+      duplicate: !created,
+    });
+    response.status(202).json({
+      success: true,
+      data: {received: true, eventId, duplicate: !created},
+    });
+  }).catch((error) => {
+    logger.error("Attendance webhook persistence failed", {eventId, error: error.message});
+    response.status(500).json({success: false, error: "WEBHOOK_PERSISTENCE_FAILED"});
   });
-  response.status(202).json({success: true, data: {received: true}});
 });
+
+function verifySignature(body, signature) {
+  const secret = process.env.WEBHOOK_SECRET;
+  if (!secret || !signature) return false;
+  const expected = crypto.createHmac("sha256", secret).update(body).digest("hex");
+  const expectedBuffer = Buffer.from(expected, "utf8");
+  const actualBuffer = Buffer.from(signature, "utf8");
+  return expectedBuffer.length === actualBuffer.length
+    && crypto.timingSafeEqual(expectedBuffer, actualBuffer);
+}

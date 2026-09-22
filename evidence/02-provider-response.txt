@@ -1,0 +1,13 @@
+A5 Provider Proof
+Provider endpoint:
+GET https://attendanceflow-webhook.6731503026.workers.dev/api/enrollments
+
+Query:
+course_code=CS101&section_number=SEC01
+
+Observed result: HTTP/2 200
+Provider response identity: UniEnroll Team 03
+Service: Active Student Enrollment Roster
+Returned records: 1
+
+The Worker proxies the upstream JSON response and does not expose PARTNER_API_KEY to the client.

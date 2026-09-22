@@ -6,6 +6,10 @@ export default {
       return new Response(null, { status: 204, headers: corsHeaders(env) })
     }
 
+    if (request.method === 'GET' && new URL(request.url).pathname === '/api/enrollments') {
+      return proxyEnrollments(request, env)
+    }
+
     if (request.method !== 'POST') {
       return json({ success: false, error: 'METHOD_NOT_ALLOWED' }, 405, env)
     }
@@ -37,9 +41,20 @@ export default {
       })
 
       if (!response.ok) {
+        console.log(JSON.stringify({
+          event: 'webhook.delivery.failed',
+          eventId: payload.eventId,
+          status: response.status,
+          recovered: false,
+        }))
         return json({ success: false, error: 'TARGET_WEBHOOK_FAILED' }, 502, env)
       }
 
+      console.log(JSON.stringify({
+        event: 'webhook.delivery.succeeded',
+        eventId: payload.eventId,
+        recovered: true,
+      }))
       return json({ success: true, data: { delivered: true, eventId: payload.eventId } }, 202, env)
     } catch (error) {
       return json({ success: false, error: error.message || 'WEBHOOK_FAILED' }, error.status || 400, env)
@@ -47,11 +62,49 @@ export default {
   },
 }
 
+async function proxyEnrollments(request, env) {
+  const incomingUrl = new URL(request.url)
+  const courseCode = incomingUrl.searchParams.get('course_code')
+  const sectionNumber = incomingUrl.searchParams.get('section_number')
+  const studentCode = incomingUrl.searchParams.get('student_code')
+
+  if ((!courseCode || !sectionNumber) && !studentCode) {
+    return json({ success: false, error: 'INVALID_QUERY' }, 400, env)
+  }
+  if (!env.PARTNER_API_KEY) {
+    return json({ success: false, error: 'PARTNER_API_KEY_NOT_CONFIGURED' }, 503, env)
+  }
+
+  const partnerUrl = new URL(studentCode
+    ? `https://unienroll-backend.team03-enrollment.workers.dev/api/partner/students/${encodeURIComponent(studentCode)}/enrollments`
+    : 'https://unienroll-backend.team03-enrollment.workers.dev/api/partner/enrollments')
+  if (courseCode) partnerUrl.searchParams.set('course_code', courseCode)
+  if (sectionNumber) partnerUrl.searchParams.set('section_number', sectionNumber)
+
+  try {
+    const partnerResponse = await fetch(partnerUrl, {
+      headers: {
+        'content-type': 'application/json',
+        'x-partner-key': env.PARTNER_API_KEY,
+        'x-partner-id': 'team-05-attendance-tracking',
+      },
+    })
+    const body = await partnerResponse.text()
+    return new Response(body, {
+      status: partnerResponse.status,
+      headers: { 'content-type': 'application/json', ...corsHeaders(env) },
+    })
+  } catch (error) {
+    console.log(JSON.stringify({ event: 'enrollment.proxy.failed', error: error.message }))
+    return json({ success: false, error: 'PARTNER_UNAVAILABLE' }, 502, env)
+  }
+}
+
 function corsHeaders(env) {
   return {
     'access-control-allow-origin': env.ALLOWED_ORIGIN || '*',
     'access-control-allow-headers': 'Authorization, Content-Type',
-    'access-control-allow-methods': 'POST, OPTIONS',
+    'access-control-allow-methods': 'GET, POST, OPTIONS',
   }
 }
 

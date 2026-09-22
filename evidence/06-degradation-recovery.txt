@@ -1,0 +1,15 @@
+A5 Degradation and Recovery Proof
+
+Observed failure before PARTNER_API_KEY was configured:
+HTTP 503
+{"success":false,"error":"PARTNER_API_KEY_NOT_CONFIGURED"}
+
+Observed authentication failure with an invalid partner key:
+HTTP 401
+{"success":false,"error":"Unauthorized: Invalid or missing X-Partner-Key header."}
+
+Recovery:
+After configuring the correct Cloudflare secret, the same request returned HTTP 200 and one active enrollment record from UniEnroll Team 03.
+
+Limitation:
+The current read-only proxy has no persistent retry queue. A full automatic-retry proof requires an agreed retry/fallback contract and an outage test against the partner.
