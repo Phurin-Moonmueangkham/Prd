@@ -107,6 +107,10 @@ function App() {
         eventType: 'attendance.created',
         attendanceId: 'session-1_STU-20241',
         sessionId: 'session-1',
+        studentCode: '65010042',
+        courseCode: 'CS101',
+        sectionNumber: 'SEC01',
+        room: 'CB2-301',
         status: 'present',
       })
     } catch {

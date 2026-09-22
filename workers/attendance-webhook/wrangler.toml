@@ -5,5 +5,10 @@ compatibility_date = "2026-09-22"
 [vars]
 FIREBASE_PROJECT_ID = "miniproject-9876d"
 ALLOWED_ORIGIN = "https://miniproject-9876d.web.app"
-# Set TARGET_WEBHOOK_URL with: wrangler secret put TARGET_WEBHOOK_URL
+TEAM03_WEBHOOK_URL = "https://unienroll-backend.team03-enrollment.workers.dev/api/webhooks/incoming"
+
+[[kv_namespaces]]
+binding = "EVENT_STORE"
+id = "46326c5cc9ad4ba1b7af9d09ae0d8dfa"
+
 # Set WEBHOOK_SECRET with: wrangler secret put WEBHOOK_SECRET
